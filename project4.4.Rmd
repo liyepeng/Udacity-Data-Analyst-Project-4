@@ -1,0 +1,778 @@
+Exploratory Analysis of Prosper Loans
+========================================================
+Ye Peng Li
+
+In fulfillment of Udacity Data Analyst Nanodegree Project 4
+
+Prosper Loan data provided by Udacity
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using
+# in your analysis in this code chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk.
+# This prevents the code from displaying in the knitted HTML output.
+# You should set echo=FALSE for all code chunks in your file.
+
+library(ggplot2)
+library(ggthemes)
+library(dplyr)
+library(gridExtra)
+library(tidyr)
+library(MASS)
+library(scales)
+library(GGally)
+```
+
+```{r echo=FALSE, Load_the_Data}
+#Load Data
+file_path = 'C:/Users/yepeng/Downloads/prosperLoanData.csv'
+prosper = read.csv(file_path)
+str(prosper)
+```
+
+# Univariate Plot Section
+
+```{r echo=FALSE}
+#1. Investor perspective - Lender Yield
+ggplot(aes(x=LenderYield), data=prosper) + 
+    geom_histogram(binwidth=0.005,fill = '#007EE5', color='black') +
+    scale_x_continuous(breaks=seq(0, 0.5, 0.05)) + 
+    ggtitle("The Lender Yield on the Loan")
+summary(prosper$LenderYield)
+```
+
+As an outsider from finance industry, it's interesting to know the Lender yield. I'd suspect they have different lender yield for different term but here we get a median of 17.3%. However, there is a huge notable spike around 31%, which is a very attractive yield rate for the investors. This is something we can keep in mind while looking for further investigation.
+
+
+```{r echo=FALSE}
+#2 Borrower's state distribution
+ggplot(data = prosper, aes(x = BorrowerState)) + 
+        geom_bar(color = "black", fill = '#099DD9') +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.6)) +
+        xlab("Borrower State") + ggtitle("Borrower State Distribution")
+```
+
+Califonia, Florida, New York and Texas have a huge amount of loan numbers than other states.These states are also famous for their population.
+
+
+
+```{r echo=FALSE}
+#3. Borrower's Rate
+ggplot(data = prosper, aes(x = BorrowerRate)) + 
+        geom_histogram(color = "black", fill = '#007EE5', binwidth = 0.01) +
+        xlab("Rate") +
+        ggtitle("Borrower Rate") 
+summary(prosper$BorrowerRate)
+```
+
+This chart is quite similar with the previous chat for Lender yield. As someone who's completely new to the industry, I did not fully comprehend there's a very linear and strong relationship between borrower rate and lender yield, which unfold later on during bivariate analysis.
+
+
+
+```{r echo=FALSE}
+#4.factorizing rating as these are the key variable we'd investigate throughout the dataset
+prosper$ProsperRating.alpha = factor(prosper$ProsperRating..Alpha.,
+                                 levels = c("AA","A","B","C","D","E","HR","NA"))
+prosper$ProsperRating <-factor(prosper$ProsperRating..Alpha,
+                        levels = c('AA', 'A', 'B', 'C', 'D', 'E', 'HR', 'NA'))
+```
+
+
+```{r echo=FALSE, warning=FALSE}
+# 4.1 Histogram of Prosper Rating by numbers of loans
+ggplot(data = na.omit(prosper), aes(ProsperRating.alpha)) +
+  geom_bar(aes(fill = ProsperRating.alpha)) +
+  ggtitle('Numbers of Loans by Prosper Rating') +
+  xlab('Rating') +
+  ylab('Number of Loans')
+summary(prosper$ProsperRating.alpha)
+```
+
+The majority of loan are non-classify and among those are being rated, "C,D,E" rating loan request are the majority.
+
+
+```{r echo=FALSE}
+# 4.2 Histogram of Prosper Score and loan numbers
+ggplot(data = prosper, aes(x = ProsperScore)) + 
+        geom_histogram( binwidth = 1, color = "black", fill = '#007EE5') +
+        xlab("Score") +
+        ylab("Number of Loans") +
+        ggtitle("Prosper Score and loan numbers")
+summary(prosper$ProsperScore)
+```
+
+Here we see another rating method. Again, most of the loans are not properly rated and rating is pretty concentrated from 4-8 range.
+
+
+
+```{r echo=FALSE}
+#5.Factorized income range
+prosper$IncomeRange = factor(prosper$IncomeRange, 
+                             levels=c("Not employed", "$0", "$1-24,999", 
+                                    "$25,000-49,999", "$50,000-74,999", 
+                                    "$75,000-99,999", "$100,000+", 
+                                    "Not displayed"))
+
+```
+
+
+```{r echo=FALSE, warning=FALSE}
+#Histogram of Income Range and loan nmubers
+ggplot(data = prosper, aes(IncomeRange)) +
+  geom_bar(color="black", fill = '#007EE5') +
+  ggtitle('Borrower Income Range') +
+  xlab('Income') +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.6)) +
+  ylab('Number of Loans')
+```
+
+Surprisigly, people with less than 25,000 USD annual income were not the majority of borrowers. I suspect this trend indicate the customer segment Prosper Loan's going after. It's possible the main target are future home-owner, car-owner, studebt-debt payment.
+
+
+
+```{r echo=FALSE, warning=FALSE}
+#6. Debt to Income Ratio and loan numbers
+ggplot(data = prosper, aes(x = DebtToIncomeRatio)) +                
+        geom_histogram(color = "black", fill = '#007EE5', binwidth = 0.02) +
+        xlim(0, quantile(prosper$DebtToIncomeRatio, prob = 0.99, na.rm=TRUE)) +
+        ggtitle("Debt To Income Ratio") +
+        xlab("Debt to Income Ratio") +
+        ylab("Number of Loans")
+summary(prosper$DebtToIncomeRatio)
+```
+
+The data has a long-tailed right-skewed but as expected. It's expected the majority of people in U.S have a credit history, and the ratio should be low enough for a secured repayment. Seems like 25% is the threshold for most borrower.
+
+
+
+```{r echo=FALSE}
+#7. Borrower's Purpose of Loan
+x <- c('Debt Consolidation', 
+                                'Home Improvement','Business', 
+                                 'Personal Loan', 
+                                 'Student Use', 
+                                 'Auto', 
+                                 'Baby & Adoption',
+                                 'Boat', 
+                                 'Cosmetic Procedure', 
+                                 'Engagement Ring', 
+                                 'Green Loans', 
+                                 'Household Expenses', 
+                                 'Large Purchases', 
+                                 'Medical/Dental', 
+                                 'Motorcycle', 'RV',
+                                 'Taxes', 'Vacation',
+                                 'Wedding Loans', 
+                                 'Other', 
+                                 'Not Available')
+
+prosper$ListingCategory <- factor(prosper$ListingCategory..numeric., 
+                                  levels = c(1:6,8:20,7,0), labels = x)
+```
+
+```{r echo=FALSE}
+ggplot(prosper, aes(ListingCategory)) +
+                geom_bar(color="black", fill = '#007EE5') +
+                theme(axis.text.x = element_text(angle = 90, vjust = 0.6)) + 
+                ggtitle("The Purpose of the Loan Listing") +
+                xlab("Listing Category") +
+                ylab("Number of loans")+
+                scale_y_sqrt()
+
+summary(prosper$ListingCategory)
+```
+
+Again, we see not many people're willing to explain the purpose of loan listing. There's a surprisingly amount of needs for debt consolidation, more than 50%. Now the data for income range makes perfect sense, as young people are going out to the real world and start to repay their student debt, purchase cars, mortgage their apartment, etc. Therefore, people already been in the workforce for many decades wouldn't need much Prosper service.
+
+
+
+```{r echo=FALSE}
+#8 Loan count split by year
+split_to_columns <- function(df, input_colnum, output_colname_assoc_arr) {
+  dates <- strptime(df[, input_colnum], format="%m/%d/%Y %H:%M")
+  df[output_colname_assoc_arr["year"]] <- as.numeric(strftime(dates,
+                                                              format="%Y"))
+  df[output_colname_assoc_arr["month"]] <- as.numeric(strftime(dates,
+                                                               format="%m"))
+  df[output_colname_assoc_arr["day"]] <- as.numeric(strftime(dates,
+                                                             format="%d"))
+  years <- df[output_colname_assoc_arr["year"]]
+  days <- (as.numeric(strftime(dates,  format="%j"))/366)
+  df[output_colname_assoc_arr["decimal_date"]] <- years + days 
+  return(df)
+}
+```
+
+```{r echo=FALSE}
+#column 65
+loan_orig_date_set <- c()
+loan_orig_date_set["year"] <- "LoanOriginationDate_year"
+loan_orig_date_set["month"] <- "LoanOriginationDate_month"
+loan_orig_date_set["day"] <- "LoanOriginationDate_day"
+loan_orig_date_set["decimal_date"] <- "LoanOriginationDate_decimal"
+prosper <- split_to_columns(prosper, 65,   loan_orig_date_set)
+```
+
+```{r echo=FALSE}
+ggplot(prosper, aes(as.factor(LoanOriginationDate_year))) +
+  geom_bar(color = 'black', fill = '#007EE5') +
+  ggtitle('Number of Loans by Year') +
+  #stat_bin(geom="text", aes(label=..count.., vjust=-0.9, hjust=0.5)) +
+  xlab('Year') +
+  ylab('Number of Loans')
+```
+
+```{r echo=FALSE}
+prosper$LoanOriginationDate_year <- factor(prosper$LoanOriginationDate_year)
+summary(prosper$LoanOriginationDate_year)
+```
+
+The chart took a plunge in 2009 and exploded the year after and peaked in 2013. Now, this period is coincide with the 2008 Global Financial Crisis and government must have conducted certain action toward credit-typed business. Doing a quick Google search, we now understand the period of October 15, 2008 to July 13, 2009 is Prosper's QuietSEC Period, from which they are suspended for lending activities upon SEC approval. Prosper relaunched in July 2009, most notable hypothesis is Prosper needed to adjust their scoring algorigthm to ensure tighter interest rate & stricter rating criteria.
+
+
+
+```{r echo=FALSE, warning=FALSE}
+# 9. Number of Loans split by Month
+ggplot(prosper, aes(LoanOriginationDate_month)) +
+  geom_histogram(bins = 20, color = 'black', fill = '#007EE5') +
+  facet_wrap(~LoanOriginationDate_year) +
+  ggtitle('Number of Loans by Month') +
+  xlab('Month') +
+  ylab('Number of Loans') +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  scale_y_sqrt()
+```
+
+Again, we so almost little to no loan activities in 2009 and the extremely high growth in 2013. Probably in 2013, business went back to normal and the demand for credit increased.
+
+
+
+```{r echo=FALSE, warning=FALSE}
+# 10. Number of Loan Split by Amount
+ggplot(prosper, aes(LoanOriginalAmount)) + 
+                geom_histogram(binwidth = 1000, color = 'black', 
+                               fill = '#007EE5') +
+                scale_x_continuous(
+                limits = c(0,quantile(prosper$LoanOriginalAmount, 0.99,
+                                                        na.rm = TRUE)),
+                breaks = seq(0, quantile(prosper$LoanOriginalAmount, 0.99, 
+                                                  na.rm = TRUE), 2000)) +
+                theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+summary(prosper$LoanOriginalAmount)
+```
+
+Here is another interesting insight, the minimum loan amoutn is $1,000 USD and people tend to borrow in 4 main range ($3000, $4000, $10000, $15000). Although this might be more than enough for them to cover their original need, people tend to check these rounded amount boxes.
+
+
+
+```{r echo=FALSE, warning=FALSE}
+#11. Employment status
+ggplot(aes(x = EmploymentStatus), data = na.omit(prosper)) +
+                    stat_count(width = 0.5, color = 'black', 
+                               fill = '#007EE5') +
+                    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+                    ggtitle("Loans by Employment Status")
+
+summary(prosper$EmploymentStatus)
+```
+
+Among these criteria, probably people would tick in "Employed" box & would not fill-in other details, which also explained why self-employed borrowers are higher than part-time employment.
+
+
+
+```{r echo=FALSE, message=FALSE,warning=FALSE}
+#12. Stated Monthly Income
+ggplot(aes(x = StatedMonthlyIncome), data = prosper) +
+                  geom_histogram(binwidth = 1000,color = 'black', 
+                               fill = '#007EE5') +
+                  scale_x_continuous(
+                  limits = c(0, quantile(prosper$StatedMonthlyIncome, 0.99,
+                                                              na.rm = TRUE)),
+                  breaks = seq(0, quantile(prosper$StatedMonthlyIncome, 0.99, 
+                                                      na.rm = TRUE), 1000)) +
+                  theme(axis.text.x = element_text(angle = 90))
+
+
+summary(prosper$StatedMonthlyIncome)
+```
+
+Median income range is at $4667 and mean of $5608 which is quite average for a professional with few years of experience. 
+
+
+
+```{r echo=FALSE, warning=FALSE}
+# 13. Employment length
+ggplot(aes(x=EmploymentStatusDuration/12), data=subset(prosper, 
+                    EmploymentStatus %in% 
+                    c("Employed", "Full-time", 
+                    "Part-time", "Self-employed"))) + 
+  geom_histogram(binwidth = 1, fill='#007EE5', color='black') +
+  labs(title='Employment Length of Borrower', x='Years of employment') +
+  scale_x_continuous(breaks=seq(0, quantile(prosper$EmploymentStatusDuration, 
+                                            0.99, na.rm = TRUE), 1))
+
+summary(prosper$EmploymentStatusDuration/12)
+```
+
+As expected, the data is in favor of people have fewer years of employment and as they aging, they do not need much loan as before.
+
+
+
+```{r echo=FALSE, message=FALSE}
+# 14.  Most common term loan
+prosper$Term <- factor(prosper$Term)
+ggplot(data = prosper, aes(x = Term)) +
+        stat_count(width = 0.5,fill='#007EE5') +
+        ggtitle("Length of the Loan")
+```
+
+This is an interesting piece of information we would want to investigate further. 36-month term loan is the most sought-after term, if we couple this with the previous common Borrower Rate, a 3 years loan with median 18.4% lender yield rate is a very attractive rate for this business.
+
+
+
+```{r echo=FALSE}
+# 15. Number of investors invest in a loan
+p1 <- ggplot(aes(x=Investors), data= prosper) + 
+    geom_histogram(binwidth=1, fill= '#007EE5', color='black') +
+    labs(title="Number of Investors Funded the Loan")
+    scale_x_continuous(breaks=seq(0, 1250, 150))
+
+p2 <- ggplot(aes(x=Investors), data= prosper) + 
+    geom_histogram(binwidth=1, fill= '#007EE5', color='black') +
+    labs(title="Number of Investors Funded the Loan")+
+    scale_x_sqrt(breaks=seq(0, 1250, 150)) +
+    scale_y_sqrt()
+grid.arrange(p1, p2, ncol = 1)
+
+table(prosper$Investors==1)
+```
+
+Axis transformation for the long tailed data makes the trends more clear. Table shows that out of 113937 loans, about 24.4% are funded individually. This is a very high concentration toward 1 investor. However, if we keep in mind 75% of loan are below $12000. This would make sense.
+
+
+
+#Univariate Analysis
+
+###What is the structure of your dataset?
+
+The dataset is comprised of 88 variables with 113937 observations. The loans cover the period 2005 & 2014. Variables are of classes int, numeric, date, and factor. Although 88 variables seems to be intimidating at first, we can split these variables into 2 main players: the "Borrowers" variables & "Investors" variables.
+
+###What is/are the main feature(s) of interest in your dataset?
+
+For the sake of this analysis, let's split the dataset into 2 different players:
+
+For Borrower, I believe the Prosper Score, Proser Rating (both numeric & alphabet) are the main indicators of a quality of borrowers. Further bivariate analysis would help to learn about these 2.
+
+For Lender, I now understand Lender Yield is the most important factor for investor.
+
+As a marketplace, Prosper would be more interest in Service Fees & Collection Fees but we would not dive into these variables in our analysis.
+
+###What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+
+So far, I have seen some evidences that people take more loans in specific months and the interest rate of these loans are strongly related to the term of the each loan. There is something curious about loan with 37%-38% of interest rate and I have not understood why loan with term of 36 month are so much more dispersed than 60 months, although the median of interest rates on 60 month are slightly greater than 36 months.
+
+Also, I didn't find nothing so interesting about risk score and income level, two variable that I was expecting more. On the other hand, maybe this variables have more to tell when related to others. I would like to understand better why loans with term of 36-months are more dispersed than 60 months. Also I want to find out why risky loans are classified that way.
+
+###Did you create any new variables from existing variables in the dataset?
+
+No. I was factorizing a few variables but did not create any new one.
+
+Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+
+Yes, there is few unsual distribution, I was particularly pay attention to the high spike in lender yield & borrower rate and the spike in LoanOriginalAmount that people tend to buy in bulk. I was factorizing data and since categorical variables enter into statistical models differently than continuous variables, storing data as factors insures that the modeling functions will treat such data correctly. Another unsual thing is that similarity of the distribution for lender yield and borrower rate. I will investigate this problem in the bivariate plot section.
+
+
+
+# Bivariate Plot Section
+
+###Part One
+Part one is to investigate how lenders try to get their profit max and Prosper Rating is an important fator for lender's choice.
+
+
+```{r echo=FALSE, Bivariate_Plots}
+#16. Borrower Rate vs Lender Yield#16. Borrower Rate vs Lender Yield
+ggplot(data = prosper, aes(x = BorrowerRate, y = LenderYield)) +
+        geom_point() +
+        geom_smooth(method = 'lm', color = 'red' )+
+        xlab("Borrower Rate") +
+        ggtitle("Borrower Rate and Lender Yield")
+```
+
+```{r echo=FALSE}
+with (prosper, cor.test(BorrowerRate, LenderYield))
+```
+
+The sample estimated corrolation coeffient of Lender Yield and Borrower Rate is nearly 1. Such a strong corrolation may mean they are measuring same thing just with different terms. But from the concept lender yield and borrower rate are totally different. So they should be have a strong linear realationship.Then what's the factor associated with borrower rate?
+
+
+
+```{r echo=FALSE}
+#17.Prosper Rating and Borrower Rate
+p1 <- ggplot(data = na.omit(prosper), aes(x = ProsperRating.alpha, 
+                                    y = BorrowerRate)) +
+        geom_boxplot() +
+        xlab("Prosper Rating") +
+        ggtitle("Borrower Rate for Different Prosper Rating" )
+
+p2 <- ggplot(aes(x= ProsperRating..numeric., y= BorrowerRate ), 
+    data=na.omit(prosper)) +
+    geom_point(alpha = 0.33, position = "jitter") +
+    ggtitle("Borrower Rate vs Term and Numeric Prosper Rate ")
+grid.arrange(p1, p2, ncol = 1)
+```
+
+As the Proser rating gets worse the borrower rate is increasing. It does make sense. But should the lender choose more bad prosper rating customer so that they can make more profit?
+
+
+
+```{r echo=FALSE}
+#18.Load Original Amount - Prosper Rating
+ggplot(data = prosper, aes(x = ProsperRating.alpha, y = LoanOriginalAmount)) +
+        geom_bar(stat = 'identity') +
+        xlab("Prosper Rating") +
+        ggtitle("Sum of Original Loan Amount for Different Prosper Rating")
+```
+
+Not necessarily! Lender profit amount depends not only on borrower rate but also on the original loan amount. This graph shows Prosper rateing in "A","B","c","D" groups have larger amount of original loan than other groups. Why do lenders prefer low to middle lever borrow rate instead of higher borrower rate?
+
+
+
+```{r echo=FALSE}
+#19. Loan Status per Rating
+# create a new variable summarizing the result of each loan
+prosper <- prosper %>% mutate(Status = ifelse(LoanStatus %in%
+                     c("Chargedoff", "Defaulted"), 0,
+                     ifelse(LoanStatus %in% 
+                     c("Completed", "Current", "FinalPaymentInProgress"), 2, 
+                     ifelse(LoanStatus %in% 
+                     "Cancelled",3,1))))
+
+prosper$Status <- factor(prosper$Status, levels = 0:3, 
+                         labels = c("Defaulted", 
+                                    "Past Due", 
+                                    "Current or Paid",
+                                    "Cancelled"))
+
+```
+
+
+```{r echo=FALSE}
+# histogram of loan status and prosper rating
+ggplot(data = arrange(prosper,Status), aes(x = ProsperRating.alpha, 
+                      fill = Status)) +
+                    geom_bar() +
+                    xlab("Prosper Rating") +
+                    scale_y_sqrt()+
+                    ggtitle("Loan Status for Different Prosper Rating")
+```
+
+Loan status study shows majority of the loans in each Prosper rating are Current or paid. And I also noticed that percentage of past due loans increasing while Proper rating gets worse. It means though bad prosper rating has higer borrower rate it also has more risk for delay of the loan payment. 
+
+
+
+```{r echo=FALSE}
+# table of loan status and prosper rating
+mytable <- xtabs(~ ProsperRating.alpha + Status, prosper)
+mytable
+```
+
+The ratio of past duo loans are 0.0046, 0.011, 0.0178, 0.0266,0.032,0.038,0.042 from Proper rating AA to HR. It confirms what the histogram shows. Lower risk for delay of payment is one of the reason lenders prefer borrowers in Prosper rating group B, C and D. These three group have relatively lower borrow rate. Will it make lender make less money?
+
+
+
+```{r echo=FALSE}
+# 20. Lender profit amount and Prosper Rating
+# Create a new variable to estimate lender profit
+prosper['lenderProfit'] <- NA
+prosper$lenderProfit <- prosper$LenderYield * prosper$LoanOriginalAmount
+```
+
+How to estimate the actual lender's profit amount? I used a simple way to calculate the first year's lender profit. It is lender profit times original loan amount. This is only fit for the first year profit with fixed APR.
+
+
+
+```{r echo=FALSE}
+# Histogram of lender profit amount and Prosper rating
+ggplot(data = na.omit(prosper),
+       aes(x = ProsperRating.alpha, y = lenderProfit,
+            color = ProsperRating.alpha)) +
+       geom_boxplot() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Lender Profit Amount and Prosper Rating")
+```
+
+Lender's choice is right! We can see Prosper rating group B, C and D return more profit than other groups. As I mentioned before the original loan amount is higher in B, C and D group than other group. Though group D returns high profit in the first of the year it still has more risk for delay of loan payment in the long run.
+
+
+
+```{r echo=FALSE}
+# 21. Term and Prosper Rating
+prosper$Term <- factor(prosper$Term)
+ggplot(data = prosper, aes(x = Term)) +
+        facet_wrap(~ ProsperRating.alpha)+
+        stat_count(width = 0.5,fill='#007EE5') +
+        scale_y_sqrt()+
+        ggtitle("Length of the Loan and Prosper Rating")
+```
+
+Because of the risk of delay of payment in the long run for bad Prosper rating the lenders may choose relatively short term for those borrowers. This graph shows the amount of 60 month term decrease for rate C to HR. 
+
+```{r echo=FALSE}
+mytable <- xtabs(~ ProsperRating.alpha + Term, prosper)
+mytable
+```
+
+Table result comfirmed the graph's consumption. Lenders seems gives shorter term for the bad rate borrowers than the good rate borrowers.
+
+
+### Part Two
+Part Two is to investigate the factors inflence Prosper Rating
+
+
+```{r echo=FALSE}
+#22. Borrower Profile ~ Yearly Income ~ Prosper Rating Categorial
+ggplot(aes(y = StatedMonthlyIncome *12 , x =ProsperRating.alpha ), 
+       data = subset(prosper,prosper$StatedMonthlyIncome > 0 &
+                       prosper$StatedMonthlyIncome < 9000)) +
+      geom_boxplot(aes(fill = ProsperRating..numeric.)) +
+      xlab("Prosper Rating") +
+      ylab("Yearly Income") +
+      ggtitle("Yearly Income for Different Prosper Rating")
+
+summary(prosper$StatedMonthlyIncome*12)
+```
+
+For this graph, we explicitly excluded MonthlyIncome more than 9000 and no income as there're few outliers have monthly income more than 9000 and the chart cannot displayed properly.
+
+
+
+```{r echo=FALSE}
+#23. Borrower Profile ~ DebtIncomeRatio ~ Prosper Rating
+ggplot(aes(y = DebtToIncomeRatio , x =ProsperRating.alpha ), 
+       data = na.omit(filter(prosper, DebtToIncomeRatio < 1))) +
+      geom_boxplot(aes(fill = ProsperRating..numeric.)) +
+      xlab("Prosper Rating") +
+      ylab("DebtToIncomeRatio") +
+      ggtitle("DebtToIncomeRatio for Different Prosper Rating")
+
+summary(prosper$DebtToIncomeRatio)
+```
+As expected higer Debt ratio borrowers stay in worse Prosper rating group.
+
+
+
+```{r echo=FALSE}
+#24. Borrower Profile - Employment Status ~ Prosper Rating
+ggplot(data = na.omit(prosper),
+       aes(x = ProsperRating.alpha, fill = EmploymentStatus)) +
+       geom_bar() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Employment Status and Prosper Rating")
+```
+
+This graphy shows higher percentage of part-time workers fall in to Prosper rating C to HR group.
+
+
+### Part Three
+Other interesting investigations
+
+
+```{r echo=FALSE, warning=FALSE}
+#25. Investor proflel - Lender Yield vs Listing Category
+ggplot(data = prosper, aes(x = ListingCategory, y = LenderYield)) +
+        geom_boxplot() +
+        xlab("Category" ) +
+        ylab("Lender Yield" ) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.6)) +
+        ggtitle("Lender Yield for Different Listing Category" )
+```
+
+I initially thought there must be better yield for riskier category but it seems like there's no relationship here.
+
+
+
+```{r echo=FALSE, warning=FALSE}
+#26. Investor Profile - LoanOriginal Amount ~ Term
+ggplot(aes(y = LoanOriginalAmount, x = Term), data = prosper) +
+                                            geom_boxplot() +
+                                            scale_y_continuous(
+    limits = c(0, quantile(prosper$LoanOriginalAmount, 0.99, na.rm = TRUE)))
+```
+
+This chart is a new interesting insight, although the majority of loan are in 36-month term. The Loan original amount is significantly higher for 60 months term. Let's see if it's hold true for Lender Yield.
+
+
+
+```{r echo=FALSE}
+#27. Investor Profile - LenderYield ~ Term
+ggplot(aes(y = LenderYield, x = Term), data = prosper) +
+                                            geom_boxplot()
+```
+
+Unfortunately, this is not the case. Term Loan have higher Loan Original Amount because it'd need more time to repay those loans.
+
+
+
+
+#Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+
+I want to explore 2 main variables Lender Yield and Prosper Rating. First I found there is strong linear correlation between Lender Yield and Borrower Rate. Then from the investigation of Borrower Rate and Proper Rating I found Prosper Rating is a strong infuencor on Borrowers Rate. It makes me interested in if lenders will choose bad Prosper Rating customers to make more profit. After exploring the distribution of Original Loan Amount vs Prosper Rating and the distribution of Loan Status vs Proper Rating, I found lenders prefer intermediate rating Borrowers for the past due of loan is fewer. And simple caculation of first year's profit amount shows the intermediate part borrowers return more profit to lenders than other groups. So far, the only relationship I found is above. Other factor I was trying to compare was not having any particular relationship.
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+
+No
+
+### What was the strongest relationship you found?
+
+The relationship between (Prosper Rating and Lender Yield) and (Prosper Rating and Borrower Rate) has an inversed relationship. The higher the rating, the lower the borrower rate and lender yield.
+
+
+
+
+
+# Multivariate Plots Section
+
+```{r echo=FALSE, Multivariate_Plots}
+#28. Lender Yield vs Prosper Rate vs Term
+plot1 <- ggplot(aes(x= ProsperRating.alpha, y=LenderYield, 
+                                  color=ProsperRating.alpha), 
+       data=na.omit(filter(prosper, DebtToIncomeRatio < 1))) +
+    geom_point(alpha = 0.8, position = "jitter") +
+    facet_grid( .~ Term  ) +
+    #theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+    ggtitle("Lender Yield vs Term and Prosper Rating")
+
+plot2 <- ggplot(aes(x= ProsperRating.alpha, y= LenderYield ), 
+       data=na.omit(filter(prosper, DebtToIncomeRatio < 1))) +
+    geom_boxplot(aes(fill = ProsperRating.alpha)) +
+    facet_grid( .~ Term   ) +
+    #theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+    ggtitle("Boxplot - Lender Yield vs Term and Prosper Rating")
+
+grid.arrange(plot1, plot2, ncol=1, nrow =2)
+```
+
+This is a closer look for lender yield vs prosper rating. The majority of loans opt-in for 36-month term and the return for 36-month and 60-month are just higher than 12-month, also considering the fact there're less loan in 12-month term than other term.
+
+
+
+```{r echo=FALSE}
+#29.Borrow Rate Vs Prosper Rate vs Year
+p1 <- ggplot(aes(x= ProsperRating.alpha, y= BorrowerRate), 
+       data=prosper) +
+    geom_boxplot(aes(fill = ProsperRating.alpha)) +
+    facet_grid( ~ LoanOriginationDate_year) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+    ggtitle("Borrower Rate vs Year and Prosper Rate")
+
+p2 <- ggplot(aes(x= ProsperRating.alpha, y= BorrowerRate), 
+       data=na.omit(prosper)) +
+    geom_boxplot(aes(fill = ProsperRating.alpha)) +
+    facet_grid(. ~ LoanOriginationDate_year) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+    ggtitle("Borrower Rate vs Year and Prosper Rate")
+
+grid.arrange(p1, p2, ncol = 1, nrow = 2)
+```
+
+Upper graph didn't get rid of NA values and lower graph did.
+Prosper must have optimized their model throughout the year and as we see the borrower throughout the year, the variation between borrower rate is not that significant anymore and we tend to have smaller standard deviation year-over-year. We can see that solid relationship between Borrower Rate and Prosper Rating was build since 2009 (after the economy recession).Something worth noticing is the amount of borrowing suddenly decreased in 2013.
+
+
+
+```{r echo=FALSE}
+#30. Lender's Profit vs Year vs Prosper Rating
+ggplot(data = na.omit(prosper),
+       aes(x = BorrowerRate, y = lenderProfit, 
+           color = ProsperRating.alpha)) +
+       geom_point() +
+       facet_wrap(~ LoanOriginationDate_year)+
+       scale_color_brewer(type='qual') +
+       ggtitle("Borrower Rate vs Year and Prosper Rate")
+```
+
+Lender prifit seems higher in Prosper Rating B, c and D group. It is especial typical in 2011 and 2012.It is similar to the result in the Bivariate plot section graph 20.Another thing worth noticing is the lender profit suddenly decreased in 2013. It might be associated with the borrowing amount sunddenly decreased in 2013 which is showed by the above graph.
+
+
+#Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+
+Term loan is quite a good indicator whether we have a better Lender Yield or not. Also, we see how three variables Lender Yield, Prosper Rating and Debt To Income Ratio come together and how it affect each order. 
+
+### Were there any interesting or surprising interactions between features?
+
+The criteria for being an AA borrowers seems to be tighten over the year and a there seems to be a fixed borrower rate in criteria HR and AA.
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the strengths and limitations of your model.
+
+No. For this dataset logistic regression may be better than linear regression. But it need more financial knownledge before setting up the model.
+
+
+
+
+
+#Final Plots and Summary
+
+###Plot One:
+```{r echo=FALSE, Plot_One}
+ggplot(prosper, aes(as.factor(LoanOriginationDate_year))) +
+  geom_bar(color = 'black', fill = '#007EE5') +
+  ggtitle('Number of Loans by Year') +
+  #stat_bin(geom="text", aes(label=..count.., vjust=-0.9, hjust=0.5)) +
+  xlab('Year') +
+  ylab('Number of Loans')
+```
+
+###Description One
+
+This graph shows a very interesting time in U.S credit business history where most of the banks and financial institution gone under strong investigation from the SEC, only to recover and went back to business and growein stronger than ever.
+
+
+###Plot Two
+```{r echo=FALSE, Plot_Two}
+ggplot(data = arrange(prosper,Status), aes(x = ProsperRating.alpha, 
+                    y = LoanOriginalAmount, fill = Status)) +
+                    geom_bar(stat = "identity") +
+                    xlab("Prosper Rating") +
+                    ylab("Original Loan Amount [$]") +
+                    ggtitle("Orignal Loan Amount for Different Prosper Rating")
+```
+
+###Description Two
+
+This chart confirmed that although there is higher lending yield for lower rating. The investors should also takes a look at the risk of the loan being defaulted. We see very clear in this chart as the rating get worsen, the higher chance the loan getting defaulted.
+
+
+###Plot Three:
+```{r echo=FALSE, Plot_Three}
+ggplot(aes(x= DebtToIncomeRatio, y=LenderYield, color=ProsperRating.alpha), 
+       data=na.omit(filter(prosper, DebtToIncomeRatio < 1))) +
+  geom_point(alpha = 1) +
+  #scale_y_log10() +
+  #facet_grid(.~ ProsperRating.alpha ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  ggtitle("Lender Yield  vs Debt to Income Ratio vs Prosper Rate (for loans with rating)") +
+  xlab ("Debt To Income Ratio < 1") +
+  ylab ("Lender Yield [%]") +
+  scale_fill_discrete(name = "Prosper Rating")
+```
+
+###Description Three
+
+This basically best summarize the relationship between Lender Yield and Prosper Rating. The higher the risk, the lower the rating, the better the lender yield. We also noticed high rank like AA would not have D/I ration more than 25% and although most borrowers have lower D/I Ratio, there're still high D/I ratio borrowers and fall in lower ProsperRating. Therefore, we see a somewhat upward triangular shape.
+
+
+
+#Reflection
+
+I was struggling if I should switch to another dataset as the more I'm looking at, the more I get confused and see no significant correlation between the variables. I was suspecting to see few obvious trend and correlation without much investigation but I was wrong. Although there are more than 30 plots in this report. Lots of charts were never appeared here as I did lots of back-of-the-envelope visualisation but wouldn't make any good story. In addition to that, I have to go through each variable one by one, try to understand the meaning as I was not an expert in the financial industry. 
+
+I then categorize these variables into three different players: Prosper company, lenders & borrowers. Only then the variables makes a lot more sense & I'm trying to make assumption a long the way to explore it. At the end of the project, it did give me a sense of understanding for the lending business.I have a impression that all though the lenders select more borrowers with low to intermediate borrower rate they can still make money. It is for this part of borrowers have lower risk of delay of payment. And selecting good proper rating borrowers and giving them lower borrower rate is the trend since 2009.
+
+As I progress through the analysis, I only found Debt to Income ratio is the predictor of Lending Yield and Borrower Rate and the other variables seems not to play that big of a role. To expand to project, we can try to combine various variables and make a predictive model using logistic regression for a go/no-go investment decision or any classification algorigthm would make sense.
+
